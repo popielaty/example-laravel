@@ -65,7 +65,6 @@ jobs:
         run: |
           echo "${{ env.ovpn_client }}" > config.ovpn
           echo "${{ env.ovpn_user_key_password }}" > vpn-key-pass.txt
-          # sudo openvpn --config config.ovpn --askpass vpn-key-pass.txt --daemon --log openvpn.log --writepid openvpn.pid
           sudo openvpn --config config.ovpn --askpass vpn-key-pass.txt --daemon
           sleep 5
           echo "vpn_connected=true" >> $GITHUB_ENV
