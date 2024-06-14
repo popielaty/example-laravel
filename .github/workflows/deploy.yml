@@ -82,7 +82,7 @@ jobs:
           CURRENT_DIR: /home/${{ env.ssh_username }}/releases/current
           STORAGE_DIR: /home/${{ env.ssh_username }}/shared/storage
           WEB_ROOT_DIR: /home/${{ env.ssh_username }}/${{ env.web_root_dir }}
-          REMOTE: git@github.com:${{ github.repository }}
+          REMOTE: github-test.com:${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
           LARAVEL_ENV: ${{ secrets.laravel_env }}
         with:
