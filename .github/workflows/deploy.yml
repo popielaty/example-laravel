@@ -76,7 +76,7 @@ jobs:
         env:
           HOME_DIR: /home/${{ env.ssh_username }}
           RELEASE_DIR: /home/${{ env.ssh_username }}/releases/${{ env.release_dir }}
-          CURRENT_DIR: /home/${{ env.ssh_username }}/current
+          CURRENT_DIR: /home/${{ env.ssh_username }}/releases/current
           STORAGE_DIR: /home/${{ env.ssh_username }}/shared/storage
           WEB_ROOT_DIR: /home/${{ env.ssh_username }}/${{ env.web_root_dir }}
           REMOTE: git@github.com:${{ github.repository }}
@@ -101,7 +101,7 @@ jobs:
             # Remove duplicate keys by keeping the last occurrence
             awk -F'=' '!seen[$1]++' .env > .env.tmp && mv .env.tmp .env
 
-            # Shared storage directory is shared across releases
+            # Remove release's storage directory and create a symlink to shared storage
             rm -fr storage
             ln -s $STORAGE_DIR storage
 
