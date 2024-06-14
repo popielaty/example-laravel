@@ -17,19 +17,16 @@ jobs:
     env:
       ssh_host: ${{ vars.SSH_HOST }}
       ssh_username: ${{ vars.SSH_USERNAME }}
-      ssh_private_key: ${{ secrets.ssh_private_key }}
-      ovpn_client: ${{ secrets.ovpn_client }}
-      ovpn_user_key_password: ${{ secrets.ovpn_user_key_password }}
-      laravel_env: ${{ secrets.laravel_env }}
+      ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      ovpn_client: ${{ secrets.OVPN_CLIENT }}
+      ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
+      laravel_env: ${{ secrets.LARAVEL_ENV }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Validate required variables and secrets
         run: |
-          echo "${{ env.ssh_host }}"
-          echo "${{ env.ssh_username }}"
-          exit 1
           if [ -z "${env.ssh_host}" ]; then
             echo "Variable ssh_host is not set"
             exit 1
