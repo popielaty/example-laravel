@@ -19,6 +19,7 @@ jobs:
       ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
       ovpn_client: ${{ secrets.OVPN_CLIENT }}
       ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
+      repo_host: ${{ vars.REPO_HOST || 'git@github.com' }}
       web_root_dir: ${{ vars.WEB_ROOT_DIR }}
       laravel_env: ${{ secrets.LARAVEL_ENV }}
     steps:
@@ -61,15 +62,15 @@ jobs:
           sudo apt update
           sudo apt install -y openvpn openvpn-systemd-resolved
       - name: Connect to VPN
-        id: connect-vpn
         run: |
           echo "${{ env.ovpn_client }}" > config.ovpn
           echo "${{ env.ovpn_user_key_password }}" > vpn-key-pass.txt
           sudo openvpn --config config.ovpn --askpass vpn-key-pass.txt --daemon --log openvpn.log --writepid openvpn.pid
-      - name: Wait for VPN connection to stabilize
-        uses: jakejarvis/wait-action@master
-        with:
-          time: '5s'
+          echo "vpn_connected=true" >> $GITHUB_ENV
+#      - name: Wait for VPN connection to stabilize
+#        uses: jakejarvis/wait-action@master
+#        with:
+#          time: '5s'
       - name: Add SSH host to known_hosts
         run: |
           mkdir -p ~/.ssh
@@ -82,7 +83,7 @@ jobs:
           CURRENT_DIR: /home/${{ env.ssh_username }}/releases/current
           STORAGE_DIR: /home/${{ env.ssh_username }}/shared/storage
           WEB_ROOT_DIR: /home/${{ env.ssh_username }}/${{ env.web_root_dir }}
-          REMOTE: github-test.com:${{ github.repository }}
+          REMOTE: ${{ env.repo_host }}:${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
           LARAVEL_ENV: ${{ secrets.laravel_env }}
         with:
@@ -117,11 +118,13 @@ jobs:
             ln -nfs $CURRENT_DIR $WEB_ROOT_DIR
 
             cd $WEB_ROOT_DIR
-            # Run migrations under maintenance mode
-            php artisan down
+            # Run migrations
             php artisan migrate --force --no-interaction
-            php artisan up
 
       - name: Disconnect from VPN
-        if: steps.connect-vpn.outcome == 'success'
-        run: sudo pkill openvpn
+        if: always()
+        run: |
+          if [ -n "${{ env.vpn_connected }}" ]; then
+            sudo killall openvpn
+          fi
+        continue-on-error: true
