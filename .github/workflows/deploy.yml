@@ -76,25 +76,25 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           LARAVEL_ENV: ${{ secrets.laravel_env }}
         with:
-          host: ${{ vars.SSH_HOST }}
-          username: ${{ vars.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ env.ssh_host }}
+          username: ${{ env.ssh_username }}
+          key: ${{ env.ssh_private_key }}
           envs: RELEASE_DIR,STORAGE_DIR,REMOTE,BRANCH,LARAVEL_ENV
           script: |
 
-          # Create release directory
+            # Create release directory
             mkdir -p $RELEASE_DIR
             cd $RELEASE_DIR
             git clone --branch $BRANCH $REMOTE .
 
-          # Read .env.example content
+            # Read .env.example content
             cat .env.example > .env
-          # Append the LARAVEL_ENV secret values
+            # Append the LARAVEL_ENV secret values
             echo "$LARAVEL_ENV" >> .env
-          # Remove duplicate keys by keeping the last occurrence
+            # Remove duplicate keys by keeping the last occurrence
             awk -F'=' '!seen[$1]++' .env > .env.tmp && mv .env.tmp .env
 
-          # Install composer dependencies
+            # Install composer dependencies
             composer install --optimize-autoloader --no-dev
 
       - name: Disconnect VPN
