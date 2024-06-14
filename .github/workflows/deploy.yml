@@ -1,0 +1,102 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: 'Deploy to:'
+        required: true
+        options: ['beta', 'dev1', 'dev2', 'dev3', 'dev4']
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment}}
+
+    env:
+      ssh_host: ${{ vars.ssh_host }}
+      ssh_username: ${{ vars.ssh_username }}
+      ssh_private_key: ${{ secrets.ssh_private_key }}
+      ovpn_client: ${{ secrets.ovpn_client }}
+      ovpn_user_key_password: ${{ secrets.ovpn_user_key_password }}
+      laravel_env: ${{ secrets.laravel_env }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Validate required variables and secrets
+        run: |
+          if [ -z "${env.ssh_host}" ]; then
+            echo "Variable ssh_host is not set"
+            exit 1
+          fi
+          if [ -z "${env.ssh_username}" ]; then
+            echo "Variable ssh_username is not set"
+            exit 1
+          fi
+          if [ -z "${env.ssh_private_key}" ]; then
+            echo "Secret ssh_private_key is not set"
+            exit 1
+          fi
+          if [ -z "${env.ovpn_client}" ]; then
+            echo "Secret ovpn_client is not set"
+            exit 1
+          fi
+          if [ -z "${env.ovpn_user_key_password}" ]; then
+            echo "Secret ovpn_user_key_password is not set"
+            exit 1
+          fi
+          if [ -z "${env.laravel_env}" ]; then
+            echo "Secret laravel_env is not set"
+            exit 1
+          fi
+      - name: Set release dir
+        run: echo "release_dir=releases/${{ github.ref_name }}-$(date +'%Y%m%d%H%M')" >> ${GITHUB_ENV}
+      - name: Install OpenVPN
+        run: |
+          sudo apt update
+          sudo apt install -y openvpn openvpn-systemd-resolved
+      - name: Connect to VPN
+        run: |
+          echo "${{ env.ovpn_client }}" > config.ovpn
+          echo "${{ env.ovpn_user_key_password }}" > vpn-key-pass.txt
+          sudo openvpn --config config.ovpn --askpass vpn-key-pass.txt --daemon --log openvpn.log --writepid openvpn.pid
+          sleep 5
+      - name: Add SSH host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ env.ssh_host }} >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Deploy
+        uses: appleboy/ssh-action@v0.1.5
+        env:
+          RELEASE_DIR: /home/${{ env.ssh_username }}/${{ env.release_dir }}
+          STORAGE_DIR: /home/${{ env.ssh_username }}/shared/storage
+          REMOTE: git@github.com:${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          LARAVEL_ENV: ${{ secrets.laravel_env }}
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: ${{ vars.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: RELEASE_DIR,STORAGE_DIR,REMOTE,BRANCH,LARAVEL_ENV
+          script: |
+
+          # Create release directory
+            mkdir -p $RELEASE_DIR
+            cd $RELEASE_DIR
+            git clone --branch $BRANCH $REMOTE .
+
+          # Read .env.example content
+            cat .env.example > .env
+          # Append the LARAVEL_ENV secret values
+            echo "$LARAVEL_ENV" >> .env
+          # Remove duplicate keys by keeping the last occurrence
+            awk -F'=' '!seen[$1]++' .env > .env.tmp && mv .env.tmp .env
+
+          # Install composer dependencies
+            composer install --optimize-autoloader --no-dev
+
+      - name: Disconnect VPN
+        if: always()
+        run: sudo pkill openvpn
