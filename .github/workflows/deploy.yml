@@ -13,15 +13,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment}}
-
     env:
       ssh_host: ${{ vars.SSH_HOST }}
       ssh_username: ${{ vars.SSH_USERNAME }}
       ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
       ovpn_client: ${{ secrets.OVPN_CLIENT }}
       ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
+      web_root_dir: ${{ vars.WEB_ROOT_DIR }}
       laravel_env: ${{ secrets.LARAVEL_ENV }}
-
     steps:
       - name: Validate required variables and secrets
         run: |
@@ -46,18 +45,23 @@ jobs:
             exit 1
           fi
           if [ -z "${env.laravel_env}" ]; then
+            echo "Variable WEB_ROOT_DIR is not set"
+            exit 1
+          fi
+          if [ -z "${env.laravel_env}" ]; then
             echo "Secret LARAVEL_ENV is not set"
             exit 1
           fi
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set release dir
-        run: echo "release_dir=releases/${{ github.ref_name }}-$(date +'%Y%m%d%H%M')" >> ${GITHUB_ENV}
+        run: echo "release_dir=${{ github.ref_name }}-$(date +'%Y%m%d%H%M')" >> ${GITHUB_ENV}
       - name: Install OpenVPN
         run: |
           sudo apt update
           sudo apt install -y openvpn openvpn-systemd-resolved
       - name: Connect to VPN
+        id: connect-vpn
         run: |
           echo "${{ env.ovpn_client }}" > config.ovpn
           echo "${{ env.ovpn_user_key_password }}" > vpn-key-pass.txt
@@ -70,8 +74,11 @@ jobs:
       - name: Deploy
         uses: appleboy/ssh-action@v0.1.5
         env:
-          RELEASE_DIR: /home/${{ env.ssh_username }}/${{ env.release_dir }}
+          HOME_DIR: /home/${{ env.ssh_username }}
+          RELEASE_DIR: /home/${{ env.ssh_username }}/releases/${{ env.release_dir }}
+          CURRENT_DIR: /home/${{ env.ssh_username }}/current
           STORAGE_DIR: /home/${{ env.ssh_username }}/shared/storage
+          WEB_ROOT_DIR: /home/${{ env.ssh_username }}/${{ env.web_root_dir }}
           REMOTE: git@github.com:${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
           LARAVEL_ENV: ${{ secrets.laravel_env }}
@@ -79,24 +86,38 @@ jobs:
           host: ${{ env.ssh_host }}
           username: ${{ env.ssh_username }}
           key: ${{ env.ssh_private_key }}
-          envs: RELEASE_DIR,STORAGE_DIR,REMOTE,BRANCH,LARAVEL_ENV
+          envs: HOME_DIR,RELEASE_DIR,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV
           script: |
 
-            # Create release directory
+            # Create release directory and clone the repository
             mkdir -p $RELEASE_DIR
             cd $RELEASE_DIR
             git clone --branch $BRANCH $REMOTE .
 
-            # Read .env.example content
+            # Read .env.example content to .env
             cat .env.example > .env
             # Append the LARAVEL_ENV secret values
             echo "$LARAVEL_ENV" >> .env
             # Remove duplicate keys by keeping the last occurrence
             awk -F'=' '!seen[$1]++' .env > .env.tmp && mv .env.tmp .env
 
+            # Shared storage directory is shared across releases
+            rm -fr storage
+            ln -s $STORAGE_DIR storage
+
             # Install composer dependencies
             composer install --optimize-autoloader --no-dev
 
-      - name: Disconnect VPN
-        if: always()
+            # Setup symlinks
+            ln -nfs $RELEASE_DIR $CURRENT_DIR
+            ln -nfs $CURRENT_DIR $WEB_ROOT_DIR
+
+            cd $WEB_ROOT_DIR
+            # Run migrations under maintenance mode
+            php artisan down
+            php artisan migrate --force --no-interaction
+            php artisan up
+
+      - name: Disconnect from VPN
+        if: steps.connect-vpn.outcome == 'success'
         run: sudo pkill openvpn
