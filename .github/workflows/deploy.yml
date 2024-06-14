@@ -27,6 +27,8 @@ jobs:
         uses: actions/checkout@v3
       - name: Validate required variables and secrets
         run: |
+          echo "${{ vars.SSH_HOST }}"
+          exit 1
           if [ -z "${env.ssh_host}" ]; then
             echo "Variable ssh_host is not set"
             exit 1
