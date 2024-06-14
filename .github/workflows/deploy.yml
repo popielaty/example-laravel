@@ -15,8 +15,8 @@ jobs:
     environment: ${{ github.event.inputs.environment}}
 
     env:
-      ssh_host: ${{ vars.ssh_host }}
-      ssh_username: ${{ vars.ssh_username }}
+      ssh_host: ${{ vars.SSH_HOST }}
+      ssh_username: ${{ vars.SSH_USERNAME }}
       ssh_private_key: ${{ secrets.ssh_private_key }}
       ovpn_client: ${{ secrets.ovpn_client }}
       ovpn_user_key_password: ${{ secrets.ovpn_user_key_password }}
@@ -27,7 +27,8 @@ jobs:
         uses: actions/checkout@v3
       - name: Validate required variables and secrets
         run: |
-          echo "${{ vars.SSH_HOST }}"
+          echo "${{ env.ssh_host }}"
+          echo "${{ env.ssh_username }}"
           exit 1
           if [ -z "${env.ssh_host}" ]; then
             echo "Variable ssh_host is not set"
