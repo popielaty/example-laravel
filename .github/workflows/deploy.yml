@@ -23,8 +23,6 @@ jobs:
       laravel_env: ${{ secrets.LARAVEL_ENV }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
       - name: Validate required variables and secrets
         run: |
           if [ -z "${{ env.ssh_host }}" ]; then
@@ -51,6 +49,8 @@ jobs:
             echo "Secret LARAVEL_ENV is not set"
             exit 1
           fi
+      - name: Checkout
+        uses: actions/checkout@v3
       - name: Set release dir
         run: echo "release_dir=releases/${{ github.ref_name }}-$(date +'%Y%m%d%H%M')" >> ${GITHUB_ENV}
       - name: Install OpenVPN
