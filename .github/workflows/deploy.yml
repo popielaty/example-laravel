@@ -13,8 +13,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment}}
-    env:
-      ssh_host: ${{ vars.SSH_HOST }}
+    env:{
+       ssh_host: $ }{{ vars.SSH_HOST }}
       ssh_username: ${{ vars.SSH_USERNAME }}
       ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
       ovpn_client: ${{ secrets.OVPN_CLIENT }}
@@ -44,11 +44,11 @@ jobs:
             echo "Secret OVPN_USER_KEY_PASSWORD is not set"
             exit 1
           fi
-          if [ -z "${env.laravel_env}" ]; then
+          if [ -z "${{ env.web_root_dir }}" ]; then
             echo "Variable WEB_ROOT_DIR is not set"
             exit 1
           fi
-          if [ -z "${env.laravel_env}" ]; then
+          if [ -z "${{ env.laravel_env }}" ]; then
             echo "Secret LARAVEL_ENV is not set"
             exit 1
           fi
