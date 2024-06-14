@@ -66,11 +66,8 @@ jobs:
           echo "${{ env.ovpn_client }}" > config.ovpn
           echo "${{ env.ovpn_user_key_password }}" > vpn-key-pass.txt
           sudo openvpn --config config.ovpn --askpass vpn-key-pass.txt --daemon --log openvpn.log --writepid openvpn.pid
+          sleep 5
           echo "vpn_connected=true" >> $GITHUB_ENV
-#      - name: Wait for VPN connection to stabilize
-#        uses: jakejarvis/wait-action@master
-#        with:
-#          time: '5s'
       - name: Add SSH host to known_hosts
         run: |
           mkdir -p ~/.ssh
