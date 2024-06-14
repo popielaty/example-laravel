@@ -13,8 +13,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment}}
-    env:{
-       ssh_host: $ }{{ vars.SSH_HOST }}
+    env:
+      ssh_host: ${{ vars.SSH_HOST }}
       ssh_username: ${{ vars.SSH_USERNAME }}
       ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
       ovpn_client: ${{ secrets.OVPN_CLIENT }}
