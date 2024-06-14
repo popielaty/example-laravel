@@ -86,6 +86,7 @@ jobs:
           host: ${{ env.ssh_host }}
           username: ${{ env.ssh_username }}
           key: ${{ env.ssh_private_key }}
+          script_stop: true
           envs: HOME_DIR,RELEASE_DIR,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV
           script: |
 
