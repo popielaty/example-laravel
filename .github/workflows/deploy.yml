@@ -22,6 +22,7 @@ jobs:
       repo_host: ${{ vars.REPO_HOST || 'git@github.com' }}
       web_root_dir: ${{ vars.WEB_ROOT_DIR }}
       laravel_env: ${{ secrets.LARAVEL_ENV }}
+      releases_to_keep: ${{ vars.RELEASES_TO_KEEP || 3 }}
     steps:
       - name: Validate required variables and secrets
         run: |
@@ -77,6 +78,7 @@ jobs:
       - name: Deploy
         id: deploy
         uses: appleboy/ssh-action@v0.1.5
+        continue-on-error: true
         env:
           RELEASE_DIR: /home/${{ env.ssh_username }}/releases/${{ env.release_dir }}
           CURRENT_DIR: /home/${{ env.ssh_username }}/releases/current
@@ -84,7 +86,7 @@ jobs:
           WEB_ROOT_DIR: /home/${{ env.ssh_username }}/${{ env.web_root_dir }}
           REMOTE: ${{ env.repo_host }}:${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
-          LARAVEL_ENV: ${{ secrets.laravel_env }}
+          LARAVEL_ENV: ${{ env.laravel_env }}
         with:
           host: ${{ env.ssh_host }}
           username: ${{ env.ssh_username }}
@@ -98,12 +100,13 @@ jobs:
             cd $RELEASE_DIR
             git clone --branch $BRANCH $REMOTE .
 
-            # Read .env.example content to .env
-            cat .env.example > .env
-            # Append the LARAVEL_ENV secret values
-            echo "$LARAVEL_ENV" >> .env
-            # Remove duplicate keys by keeping the last occurrence
-            awk -F'=' '!seen[$1]++' .env > .env.tmp && mv .env.tmp .env
+            # output secret values to .env and concat it with data from .env.example
+            echo "$LARAVEL_ENV" > .env
+            echo "" >> .env
+            cat .env.example >> .env
+
+            # remove duplicate keys
+            awk -F'=' '!seen[$1]++ || NF == 0' .env > .env.tmp && mv .env.tmp .env
 
             # Remove release's storage directory and create a symlink to shared storage
             rm -fr storage
@@ -118,8 +121,23 @@ jobs:
             # Setup symlinks
             ln -nfs $RELEASE_DIR $CURRENT_DIR
             ln -nfs $CURRENT_DIR $WEB_ROOT_DIR
-      - name: Cleanup on deploy failure
+      - name: Cleanup on deploy success
         if: steps.deploy.outcome == 'success'
+        uses: appleboy/ssh-action@v0.1.5
+        env:
+          RELEASES_DIR: /home/${{ env.ssh_username }}/releases
+          RELEASES_TO_KEEP: ${{ env.releases_to_keep }}
+        with:
+          host: ${{ env.ssh_host }}
+          username: ${{ env.ssh_username }}
+          key: ${{ env.ssh_private_key }}
+          envs: RELEASES_DIR, RELEASES_TO_KEEP
+          script: |
+            let "RELEASES_TO_KEEP++"
+            cd $RELEASES_DIR
+            find . -maxdepth 1 -type d ! -path . -exec stat --format="%n" {} + | sort | tail -n +$RELEASES_TO_KEEP | xargs rm -fr
+      - name: Cleanup on deploy failure
+        if: steps.deploy.outcome == 'failure'
         uses: appleboy/ssh-action@v0.1.5
         env:
           RELEASE_DIR: /home/${{ env.ssh_username }}/releases/${{ env.release_dir }}
