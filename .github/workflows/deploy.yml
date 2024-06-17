@@ -58,7 +58,7 @@ jobs:
       - name: Set release dir
         run: |
           BRANCH_NAME=$(echo ${{ github.ref_name }} | tr '/' '-')
-          echo "release_dir=$BRANCH_NAME-$(date +'%Y%m%d%H%M')" >> ${GITHUB_ENV}
+          echo "release_dir=$(date +'%Y%m%d%H%M')-$BRANCH_NAME" >> ${GITHUB_ENV}
       - name: Install OpenVPN
         run: |
           sudo apt update
@@ -75,6 +75,7 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ env.ssh_host }} >> ~/.ssh/known_hosts 2>/dev/null
       - name: Deploy
+        id: deploy
         uses: appleboy/ssh-action@v0.1.5
         env:
           RELEASE_DIR: /home/${{ env.ssh_username }}/releases/${{ env.release_dir }}
@@ -117,7 +118,17 @@ jobs:
             # Setup symlinks
             ln -nfs $RELEASE_DIR $CURRENT_DIR
             ln -nfs $CURRENT_DIR $WEB_ROOT_DIR
-
+      - name: Cleanup on deploy failure
+        if: steps.deploy.outcome == 'success'
+        uses: appleboy/ssh-action@v0.1.5
+        env:
+          RELEASE_DIR: /home/${{ env.ssh_username }}/releases/${{ env.release_dir }}
+        with:
+          host: ${{ env.ssh_host }}
+          username: ${{ env.ssh_username }}
+          key: ${{ env.ssh_private_key }}
+          envs: RELEASE_DIR
+          script: rm -fr $RELEASE_DIR
       - name: Disconnect from VPN
         if: always()
         run: |
