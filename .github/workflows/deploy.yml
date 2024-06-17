@@ -56,7 +56,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set release dir
-        run: echo "release_dir=${{ github.ref_name }}-$(date +'%Y%m%d%H%M')" >> ${GITHUB_ENV}
+        run: |
+          BRANCH_NAME=$(echo ${{ github.ref_name }} | tr '/' '-')
+          echo "release_dir=$BRANCH_NAME-$(date +'%Y%m%d%H%M')" >> ${GITHUB_ENV}
       - name: Install OpenVPN
         run: |
           sudo apt update
