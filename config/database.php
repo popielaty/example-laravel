@@ -130,12 +130,12 @@ return [
 
         'monitor' => [
             'driver' => 'mysql',
-            'database' => env('DB_MONITOR_DATABASE', 'forge'),
-            'host' => env('DB_MONITOR_HOST', '127.0.0.1'),
-            'port' => env('DB_MONITOR_PORT', '3306'),
-            'username' => env('DB_MONITOR_USERNAME', 'forge'),
-            'password' => env('DB_MONITOR_PASSWORD', ''),
-            'unix_socket' => env('DB_MONITOR_SOCKET', ''),
+            'database' => env('DB_DATABASE', 'forge'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
