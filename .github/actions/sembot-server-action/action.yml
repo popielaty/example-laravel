@@ -33,6 +33,10 @@ runs:
   steps:
     - name: Validate required variables and secrets
       run: |
+        if [ -z "${{ inputs.ssh_host }}" ]; then
+          echo "Variable SSH_HOST is not set"
+          exit 1
+        fi
         if [ -z "${{ inputs.ssh_username }}" ]; then
           echo "Variable SSH_USERNAME is not set"
           exit 1
@@ -52,8 +56,6 @@ runs:
       shell: bash
     - name: Install OpenVPN
       run: |
-        echo ${{ inputs.ssh_host }}
-        exit 1
         sudo apt update
         sudo apt install -y openvpn openvpn-systemd-resolved
       shell: bash
