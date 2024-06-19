@@ -53,10 +53,12 @@ runs:
           echo "Secret OVPN_USER_KEY_PASSWORD is not set"
           exit 1
         fi
+      shell: bash
     - name: Install OpenVPN
       run: |
         sudo apt update
         sudo apt install -y openvpn openvpn-systemd-resolved
+      shell: bash
     - name: Connect to VPN
       run: |
         echo "${{ inputs.ovpn_client }}" > config.ovpn
@@ -68,10 +70,12 @@ runs:
           exit 1
         fi
         echo "vpn_connected=true" >> $GITHUB_ENV
+      shell: bash
     - name: Add SSH host to known_hosts
       run: |
         mkdir -p ~/.ssh
         ssh-keyscan -H ${{ inputs.ssh_host }} >> ~/.ssh/known_hosts 2>/dev/null
+      shell: babash
     - name: Run action script
       id: action_script
       uses: appleboy/ssh-action@v0.1.5
@@ -111,4 +115,5 @@ runs:
         if [ -n "${{ env.vpn_connected }}" ]; then
           sudo killall openvpn
         fi
+      shell: bash
       continue-on-error: true
