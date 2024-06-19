@@ -1,0 +1,83 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: 'Deploy to:'
+        required: true
+        options: ['beta', 'dev1', 'dev2', 'dev3', 'dev4']
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment}}
+    env:
+      web_root_dir: ${{ vars.WEB_ROOT_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Validate required variables and secrets for deploy
+        run: |
+          if [ -z "${{ env.web_root_dir }}" ]; then
+            echo "Variable WEB_ROOT_DIR is not set"
+            exit 1
+          fi
+      - name: Rollback on server
+        uses: ./.github/actions/sembot-server-action
+        env:
+          RELEASES_DIR: /home/${{ vars.ssh_username }}/releases
+          CURRENT_DIR: /home/${{ vars.ssh_username }}/releases/current
+          WEB_ROOT_DIR: /home/${{ vars.ssh_username }}/${{ vars.web_root_dir }}
+        with:
+          ssh_host: ${{ vars.SSH_HOST }}
+          ssh_username: ${{ vars.SSH_USERNAME }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ovpn_client: ${{ secrets.OVPN_CLIENT }}
+          ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
+          repo_host: ${{ vars.REPO_HOST }}
+          envs: RELEASES_DIR,CURRENT_DIR,WEB_ROOT_DIR
+          action_script: |
+            cd $RELEASES_DIR
+
+            # Set the latest release directory, exit if it does not exist
+            latest_release=$(realpath $CURRENT_DIR)
+            if [ ! -d "$latest_release" ]; then
+              echo "Error: there is no current release to rollback from"
+              exit 1
+            fi
+
+            # Set the previous release directory, exit if it does not exist
+            previous_release=$(find . -maxdepth 1 -type d ! -path . -exec stat --format="%n" {} + | sort -r | head -n 2 | tail -n 1 | xargs realpath)
+            if [[ "$previous_release" == "$latest_release" ]]; then
+              echo "Error: there is no previous release to rollback to"
+              exit 1
+            fi
+
+            cd $latest_release
+
+            # Rollback database migrations
+            if [ -d "$latest_release/database/migrations" ] && [ -d "$previous_release/database/migrations" ]; then
+
+              db_names=("monitor" "landlord")
+
+              # for each db compare migrations between releases, count migrations added in latest release.
+              for db_name in "${db_names[@]}"; do
+                latest_migrations=$(find $latest_release/database/migrations/$db_name -type f -name "*.php" | sed "s|$latest_release/||")
+                previous_migrations=$(find $previous_release/database/migrations/$db_name -type f -name "*.php" | sed "s|$previous_release/||")
+                migrations_to_rollback_count=$(comm -23 <(echo "$latest_migrations" | sort) <(echo "$previous_migrations" | sort) | wc -l)
+
+                # rollback
+                if [ "$migrations_to_rollback_count" -gt 0 ]; then
+                  php artisan migrate:rollback --database $db_name --path database/migrations/$db_name --step $migrations_to_rollback_count
+                fi
+              done
+            fi
+
+            # Setup symlinks
+            ln -nfs $previous_release $CURRENT_DIR
+            ln -nfs $CURRENT_DIR $WEB_ROOT_DIR
+
+            # Remove the latest release directory
+            rm -fr $latest_release

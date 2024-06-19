@@ -14,36 +14,17 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment}}
     env:
-      ssh_host: ${{ vars.SSH_HOST }}
-      ssh_username: ${{ vars.SSH_USERNAME }}
-      ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-      ovpn_client: ${{ secrets.OVPN_CLIENT }}
-      ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
       repo_host: ${{ vars.REPO_HOST || 'git@github.com' }}
       web_root_dir: ${{ vars.WEB_ROOT_DIR }}
       laravel_env: ${{ secrets.LARAVEL_ENV }}
       releases_to_keep: ${{ vars.RELEASES_TO_KEEP || 3 }}
     steps:
-      - name: Validate required variables and secrets
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Validate required variables and secrets for deploy
         run: |
-          if [ -z "${{ env.ssh_host }}" ]; then
-            echo "Variable SSH_HOST is not set"
-            exit 1
-          fi
-          if [ -z "${{ env.ssh_username }}" ]; then
-            echo "Variable SSH_USERNAME is not set"
-            exit 1
-          fi
-          if [ -z "${{ env.ssh_private_key }}" ]; then
-            echo "Secret SSH_PRIVATE_KEY is not set"
-            exit 1
-          fi
-          if [ -z "${{ env.ovpn_client }}" ]; then
-            echo "Secret OVPN_CLIENT is not set"
-            exit 1
-          fi
-          if [ -z "${{ env.ovpn_user_key_password }}" ]; then
-            echo "Secret OVPN_USER_KEY_PASSWORD is not set"
+          if [ -z "${{ env.repo_host }}" ]; then
+            echo "Variable REPO_HOST is not set"
             exit 1
           fi
           if [ -z "${{ env.web_root_dir }}" ]; then
@@ -54,47 +35,35 @@ jobs:
             echo "Secret LARAVEL_ENV is not set"
             exit 1
           fi
-      - name: Checkout
-        uses: actions/checkout@v3
+          if [ -z "${{ env.releases_to_keep }}" ]; then
+            echo "Variable RELEASES_TO_KEEP is not set"
+            exit 1
+          fi
       - name: Set release dir
         run: |
           BRANCH_NAME=$(echo ${{ github.ref_name }} | tr '/' '-')
           echo "release_dir=$(date +'%Y%m%d%H%M')-$BRANCH_NAME" >> ${GITHUB_ENV}
-      - name: Install OpenVPN
-        run: |
-          sudo apt update
-          sudo apt install -y openvpn openvpn-systemd-resolved
-      - name: Connect to VPN
-        run: |
-          echo "${{ env.ovpn_client }}" > config.ovpn
-          echo "${{ env.ovpn_user_key_password }}" > vpn-key-pass.txt
-          sudo openvpn --config config.ovpn --askpass vpn-key-pass.txt --daemon
-          sleep 5
-          echo "vpn_connected=true" >> $GITHUB_ENV
-      - name: Add SSH host to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ env.ssh_host }} >> ~/.ssh/known_hosts 2>/dev/null
-      - name: Deploy
-        id: deploy
-        uses: appleboy/ssh-action@v0.1.5
-        continue-on-error: true
+      - name: Deploy to server
+        uses: ./.github/actions/sembot-server-action
         env:
-          RELEASE_DIR: /home/${{ env.ssh_username }}/releases/${{ env.release_dir }}
-          CURRENT_DIR: /home/${{ env.ssh_username }}/releases/current
-          STORAGE_DIR: /home/${{ env.ssh_username }}/shared/storage
-          WEB_ROOT_DIR: /home/${{ env.ssh_username }}/${{ env.web_root_dir }}
+          RELEASES_DIR: /home/${{ vars.ssh_username }}/releases
+          RELEASE_DIR: /home/${{ vars.ssh_username }}/releases/${{ env.release_dir }}
+          CURRENT_DIR: /home/${{ vars.ssh_username }}/releases/current
+          STORAGE_DIR: /home/${{ vars.ssh_username }}/shared/storage
+          WEB_ROOT_DIR: /home/${{ vars.ssh_username }}/${{ vars.web_root_dir }}
           REMOTE: ${{ env.repo_host }}:${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
           LARAVEL_ENV: ${{ env.laravel_env }}
+          RELEASES_TO_KEEP: ${{ env.releases_to_keep }}
         with:
-          host: ${{ env.ssh_host }}
-          username: ${{ env.ssh_username }}
-          key: ${{ env.ssh_private_key }}
-          script_stop: true
-          envs: RELEASE_DIR,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV
-          script: |
-
+          ssh_host: ${{ vars.SSH_HOST }}
+          ssh_username: ${{ vars.SSH_USERNAME }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ovpn_client: ${{ secrets.OVPN_CLIENT }}
+          ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
+          repo_host: ${{ vars.REPO_HOST }}
+          envs: RELEASES_DIR,RELEASE_DIR,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV,RELEASES_TO_KEEP
+          action_script: |
             # Create release directory and clone the repository
             mkdir -p $RELEASE_DIR
             cd $RELEASE_DIR
@@ -116,41 +85,16 @@ jobs:
             composer install --optimize-autoloader --no-dev
 
             # Run migrations
-            php artisan migrate --force --no-interaction
+            php artisan migrate --force --no-interaction --path=database/migrations/landlord --database=landlord
+            php artisan migrate --force --no-interaction --path=database/migrations/monitor --database=monitor
+            # php artisan tenant:migrate --force
 
             # Setup symlinks
             ln -nfs $RELEASE_DIR $CURRENT_DIR
             ln -nfs $CURRENT_DIR $WEB_ROOT_DIR
-      - name: Cleanup on deploy success
-        if: steps.deploy.outcome == 'success'
-        uses: appleboy/ssh-action@v0.1.5
-        env:
-          RELEASES_DIR: /home/${{ env.ssh_username }}/releases
-          RELEASES_TO_KEEP: ${{ env.releases_to_keep }}
-        with:
-          host: ${{ env.ssh_host }}
-          username: ${{ env.ssh_username }}
-          key: ${{ env.ssh_private_key }}
-          envs: RELEASES_DIR, RELEASES_TO_KEEP
-          script: |
+          on_success_script: |
+            # Leave only the last RELEASES_TO_KEEP releases
             let "RELEASES_TO_KEEP++"
             cd $RELEASES_DIR
             find . -maxdepth 1 -type d ! -path . -exec stat --format="%n" {} + | sort | tail -n +$RELEASES_TO_KEEP | xargs rm -fr
-      - name: Cleanup on deploy failure
-        if: steps.deploy.outcome == 'failure'
-        uses: appleboy/ssh-action@v0.1.5
-        env:
-          RELEASE_DIR: /home/${{ env.ssh_username }}/releases/${{ env.release_dir }}
-        with:
-          host: ${{ env.ssh_host }}
-          username: ${{ env.ssh_username }}
-          key: ${{ env.ssh_private_key }}
-          envs: RELEASE_DIR
-          script: rm -fr $RELEASE_DIR
-      - name: Disconnect from VPN
-        if: always()
-        run: |
-          if [ -n "${{ env.vpn_connected }}" ]; then
-            sudo killall openvpn
-          fi
-        continue-on-error: true
+          on_failure_script: rm -fr $RELEASE_DIR
