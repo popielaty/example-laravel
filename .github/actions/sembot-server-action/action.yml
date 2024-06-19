@@ -79,7 +79,6 @@ runs:
     - name: Run action script
       id: action_script
       uses: appleboy/ssh-action@v0.1.5
-      continue-on-error: true
       with:
         host: ${{ inputs.ssh_host }}
         username: ${{ inputs.ssh_username }}
@@ -90,7 +89,6 @@ runs:
     - name: Run post-action script on success
       if: steps.action_script.outcome == 'success' && inputs.on_success_script
       uses: appleboy/ssh-action@v0.1.5
-      continue-on-error: true
       with:
         host: ${{ inputs.ssh_host }}
         username: ${{ inputs.ssh_username }}
@@ -101,7 +99,6 @@ runs:
     - name: Run post-action script on failure
       if: steps.action_script.outcome == 'failure' && inputs.on_failure_script
       uses: appleboy/ssh-action@v0.1.5
-      continue-on-error: true
       with:
         host: ${{ inputs.ssh_host }}
         username: ${{ inputs.ssh_username }}
