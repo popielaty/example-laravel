@@ -61,7 +61,6 @@ jobs:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           ovpn_client: ${{ secrets.OVPN_CLIENT }}
           ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
-          repo_host: ${{ vars.REPO_HOST }}
           envs: RELEASES_DIR,RELEASE_DIR,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV,RELEASES_TO_KEEP
           action_script: |
             # Create release directory and clone the repository
