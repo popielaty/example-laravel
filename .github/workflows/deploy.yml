@@ -12,11 +12,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment}}
     env:
       repo_host: ${{ vars.REPO_HOST || 'git@github.com' }}
       web_root_dir: ${{ vars.WEB_ROOT_DIR }}
-      laravel_env: ${{ secrets.LARAVEL_ENV }}
       releases_to_keep: ${{ vars.RELEASES_TO_KEEP || 3 }}
     steps:
       - name: Checkout
@@ -31,50 +29,43 @@ jobs:
             echo "Variable WEB_ROOT_DIR is not set"
             exit 1
           fi
-          if [ -z "${{ env.laravel_env }}" ]; then
-            echo "Secret LARAVEL_ENV is not set"
-            exit 1
-          fi
           if [ -z "${{ env.releases_to_keep }}" ]; then
             echo "Variable RELEASES_TO_KEEP is not set"
             exit 1
           fi
-      - name: Set release dir
+      - name: Resolve release dir
         run: |
           BRANCH_NAME=$(echo ${{ github.ref_name }} | tr '/' '-')
           echo "release_dir=$(date +'%Y%m%d%H%M')-$BRANCH_NAME" >> ${GITHUB_ENV}
       - name: Deploy to server
-        uses: ./.github/actions/sembot-server-action
+        uses: ./.github/actions/vpn-ssh-action
         env:
           RELEASES_DIR: /home/${{ vars.ssh_username }}/releases
           RELEASE_DIR: /home/${{ vars.ssh_username }}/releases/${{ env.release_dir }}
           CURRENT_DIR: /home/${{ vars.ssh_username }}/releases/current
           STORAGE_DIR: /home/${{ vars.ssh_username }}/shared/storage
+          ENV_FILE_PATH: /home/${{ vars.ssh_username }}/shared/.env
           WEB_ROOT_DIR: /home/${{ vars.ssh_username }}/${{ vars.web_root_dir }}
           REMOTE: ${{ env.repo_host }}:${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
           LARAVEL_ENV: ${{ env.laravel_env }}
           RELEASES_TO_KEEP: ${{ env.releases_to_keep }}
         with:
-          ssh_host: ${{ vars.SSH_HOST }}
+          current_environment: ${{ github.event.inputs.environment}}
+          environments: ${{ secrets.ENVIRONMENTS }}
           ssh_username: ${{ vars.SSH_USERNAME }}
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           ovpn_client: ${{ secrets.OVPN_CLIENT }}
           ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
-          envs: RELEASES_DIR,RELEASE_DIR,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV,RELEASES_TO_KEEP
+          envs: RELEASES_DIR,RELEASE_DIR,ENV_FILE_PATH,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV,RELEASES_TO_KEEP
           action_script: |
             # Create release directory and clone the repository
             mkdir -p $RELEASE_DIR
             cd $RELEASE_DIR
             git clone --branch $BRANCH $REMOTE .
 
-            # output secret values to .env and concat it with data from .env.example
-            echo "$LARAVEL_ENV" > .env
-            echo "" >> .env
-            cat .env.example >> .env
-
-            # remove duplicate keys
-            awk -F'=' '!seen[$1]++ || NF == 0' .env > .env.tmp && mv .env.tmp .env
+            # create symlink to shared .env file
+            ln -s $ENV_FILE_PATH .env
 
             # Remove release's storage directory and create a symlink to shared storage
             rm -fr storage
@@ -95,5 +86,5 @@ jobs:
             # Leave only the last RELEASES_TO_KEEP releases
             let "RELEASES_TO_KEEP++"
             cd $RELEASES_DIR
-            find . -maxdepth 1 -type d ! -path . -exec stat --format="%n" {} + | sort | tail -n +$RELEASES_TO_KEEP | xargs rm -fr
+            find . -maxdepth 1 -type d ! -path . -exec stat --format="%n" {} + | sort -r | tail -n +$RELEASES_TO_KEEP | xargs rm -fr
           on_failure_script: rm -fr $RELEASE_DIR

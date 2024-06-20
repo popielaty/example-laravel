@@ -1,8 +1,11 @@
-name: "Sembot server action"
-description: "Deploy or rollback a Laravel application to a remote server using SSH and OpenVPN"
+name: "SSH over VPN action"
+description: "Perform an action on remote server using SSH and OpenVPN"
 inputs:
-  ssh_host:
-    description: 'SSH host'
+  current_environment:
+    description: 'Current environment'
+    required: true
+  environments:
+    description: 'List of environments'
     required: true
   ssh_username:
     description: 'SSH username'
@@ -33,8 +36,12 @@ runs:
   steps:
     - name: Validate required variables and secrets
       run: |
-        if [ -z "${{ inputs.ssh_host }}" ]; then
-          echo "Variable SSH_HOST is not set"
+        if [ -z "${{ inputs.current_environment }}" ]; then
+          echo "Current environment is not set"
+          exit 1
+        fi
+        if [ -z "${{ inputs.environments }}" ]; then
+          echo "List of environments is not set"
           exit 1
         fi
         if [ -z "${{ inputs.ssh_username }}" ]; then
@@ -54,6 +61,18 @@ runs:
           exit 1
         fi
       shell: bash
+    - name: Resolve SSH Host
+      env:
+        environments: ${{ inputs.environments }}
+        current_environment: ${{ inputs.current_environment }}
+      run: |
+        ssh_host=$(echo "$environments" | jq -r ".$current_environment")
+        if [[ "$ssh_host" == "null" ]]; then
+          echo "SSH host for $current_environment is not set"
+          exit 1
+        fi
+        echo "ssh_host=$ssh_host" >> $GITHUB_ENV
+      shell: bash
     - name: Install OpenVPN
       run: |
         sudo apt update
@@ -65,8 +84,8 @@ runs:
         echo "${{ inputs.ovpn_user_key_password }}" > vpn-key-pass.txt
         sudo openvpn --config config.ovpn --askpass vpn-key-pass.txt --daemon
         sleep 5
-        if ! curl -s -m 5 ${{ inputs.ssh_host }} > /dev/null; then
-          echo "Failed establishing VPN connection to ${{ inputs.ssh_host }}"
+        if ! curl -s -m 5 ${{ env.ssh_host }} > /dev/null; then
+          echo "Failed establishing VPN connection to ${{ env.ssh_host }}"
           exit 1
         fi
         echo "vpn_connected=true" >> $GITHUB_ENV
@@ -74,13 +93,14 @@ runs:
     - name: Add SSH host to known_hosts
       run: |
         mkdir -p ~/.ssh
-        ssh-keyscan -H ${{ inputs.ssh_host }} >> ~/.ssh/known_hosts 2>/dev/null
+        ssh-keyscan -H ${{ env.ssh_host }} >> ~/.ssh/known_hosts 2>/dev/null
       shell: bash
     - name: Run action script
       id: action_script
       uses: appleboy/ssh-action@v0.1.5
+      continue-on-error: true
       with:
-        host: ${{ inputs.ssh_host }}
+        host: ${{ env.ssh_host }}
         username: ${{ inputs.ssh_username }}
         key: ${{ inputs.ssh_private_key }}
         script_stop: true
@@ -90,7 +110,7 @@ runs:
       if: steps.action_script.outcome == 'success' && inputs.on_success_script
       uses: appleboy/ssh-action@v0.1.5
       with:
-        host: ${{ inputs.ssh_host }}
+        host: ${{ env.ssh_host }}
         username: ${{ inputs.ssh_username }}
         key: ${{ inputs.ssh_private_key }}
         script_stop: true
@@ -100,14 +120,14 @@ runs:
       if: steps.action_script.outcome == 'failure' && inputs.on_failure_script
       uses: appleboy/ssh-action@v0.1.5
       with:
-        host: ${{ inputs.ssh_host }}
+        host: ${{ env.ssh_host }}
         username: ${{ inputs.ssh_username }}
         key: ${{ inputs.ssh_private_key }}
         script_stop: true
         envs: ${{ inputs.envs }}
         script: ${{ inputs.on_failure_script }}
     - name: Disconnect from VPN
-      if: ${{ env.vpn_connected }}
+      if: always()
       run: |
         if [ -n "${{ env.vpn_connected }}" ]; then
           sudo killall openvpn

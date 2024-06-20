@@ -12,7 +12,6 @@ on:
 jobs:
   rollback:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment}}
     env:
       web_root_dir: ${{ vars.WEB_ROOT_DIR }}
     steps:
@@ -31,7 +30,8 @@ jobs:
           CURRENT_DIR: /home/${{ vars.ssh_username }}/releases/current
           WEB_ROOT_DIR: /home/${{ vars.ssh_username }}/${{ vars.web_root_dir }}
         with:
-          ssh_host: ${{ vars.SSH_HOST }}
+          current_environment: ${{ github.event.inputs.environment}}
+          environments: ${{ secrets.ENVIRONMENTS }}
           ssh_username: ${{ vars.SSH_USERNAME }}
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           ovpn_client: ${{ secrets.OVPN_CLIENT }}
