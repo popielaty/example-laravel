@@ -24,11 +24,12 @@ jobs:
             exit 1
           fi
       - name: Rollback on server
-        uses: ./.github/actions/sembot-server-action
+        uses: ./.github/actions/vpn-ssh-action
         env:
           RELEASES_DIR: /home/${{ vars.ssh_username }}/releases
           CURRENT_DIR: /home/${{ vars.ssh_username }}/releases/current
           WEB_ROOT_DIR: /home/${{ vars.ssh_username }}/${{ vars.web_root_dir }}
+          ENVIRONMENTS: ${{ secrets.ENVIRONMENTS }}
         with:
           current_environment: ${{ github.event.inputs.environment}}
           environments: ${{ secrets.ENVIRONMENTS }}

@@ -4,9 +4,6 @@ inputs:
   current_environment:
     description: 'Current environment'
     required: true
-  environments:
-    description: 'List of environments'
-    required: true
   ssh_username:
     description: 'SSH username'
     required: true
@@ -40,10 +37,6 @@ runs:
           echo "Current environment is not set"
           exit 1
         fi
-        if [ -z "${{ inputs.environments }}" ]; then
-          echo "List of environments is not set"
-          exit 1
-        fi
         if [ -z "${{ inputs.ssh_username }}" ]; then
           echo "Variable SSH_USERNAME is not set"
           exit 1
@@ -60,15 +53,41 @@ runs:
           echo "Secret OVPN_USER_KEY_PASSWORD is not set"
           exit 1
         fi
+        if [ -z "$ENVIRONMENTS" ]; then
+          echo "Secret ENVIRONMENTS is not set or passed to SSH over VPN action"
+          exit 1
+        fi
+        if ! echo "$ENVIRONMENTS" | jq empty &> /dev/null; then
+          echo "Secret ENVIRONMENTS does not contain valid JSON"
+          exit 1
+        fi
+        if [[ $(echo $ENVIRONMENTS | jq -r ".${{ inputs.current_environment }}") == 'null' ]]; then
+          echo "No settings for ${{ inputs.current_environment }} in ENVIRONMENTS secret"
+          exit 1
+        fi
       shell: bash
-    - name: Resolve SSH Host
+    - name: Check user's access to environment
       env:
-        environments: ${{ inputs.environments }}
         current_environment: ${{ inputs.current_environment }}
       run: |
-        ssh_host=$(echo "$environments" | jq -r ".$current_environment")
+        if [[ $(echo $ENVIRONMENTS | jq -r ".$current_environment.authorized_users") == "null" ]]; then
+          echo "authorized_users array for $current_environment is not set in ENVIRONMENTS secret"
+          exit 1
+        fi
+
+        authorized_users=$(echo $ENVIRONMENTS | jq -r ".$current_environment.authorized_users[]")
+        if ! echo "$authorized_users" | grep -q "\\b$GITHUB_ACTOR\\b"; then
+          echo "User $GITHUB_ACTOR is not authorized to act on $current_environment"
+          exit 1
+        fi
+      shell: bash
+    - name: Resolve ssh_host
+      env:
+        current_environment: ${{ inputs.current_environment }}
+      run: |
+        ssh_host=$(echo $ENVIRONMENTS | jq -r ".$current_environment.ssh_host")
         if [[ "$ssh_host" == "null" ]]; then
-          echo "SSH host for $current_environment is not set"
+          echo "ssh_host for $current_environment is not set in ENVIRONMENTS secret"
           exit 1
         fi
         echo "ssh_host=$ssh_host" >> $GITHUB_ENV

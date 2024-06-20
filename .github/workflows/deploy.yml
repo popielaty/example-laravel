@@ -50,9 +50,9 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           LARAVEL_ENV: ${{ env.laravel_env }}
           RELEASES_TO_KEEP: ${{ env.releases_to_keep }}
+          ENVIRONMENTS: ${{ secrets.ENVIRONMENTS }}
         with:
           current_environment: ${{ github.event.inputs.environment}}
-          environments: ${{ secrets.ENVIRONMENTS }}
           ssh_username: ${{ vars.SSH_USERNAME }}
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           ovpn_client: ${{ secrets.OVPN_CLIENT }}
