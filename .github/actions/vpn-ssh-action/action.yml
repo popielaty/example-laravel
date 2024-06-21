@@ -66,7 +66,7 @@ runs:
           exit 1
         fi
       shell: bash
-    - name: Check user's access to environment
+    - name: Authorize user
       env:
         current_environment: ${{ inputs.current_environment }}
       run: |
@@ -74,14 +74,13 @@ runs:
           echo "authorized_users array for $current_environment is not set in ENVIRONMENTS secret"
           exit 1
         fi
-
         authorized_users=$(echo $ENVIRONMENTS | jq -r ".$current_environment.authorized_users[]")
         if ! echo "$authorized_users" | grep -q "\\b$GITHUB_ACTOR\\b"; then
           echo "User $GITHUB_ACTOR is not authorized to act on $current_environment"
           exit 1
         fi
       shell: bash
-    - name: Resolve ssh_host
+    - name: Resolve SSH Host
       env:
         current_environment: ${{ inputs.current_environment }}
       run: |

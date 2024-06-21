@@ -59,6 +59,8 @@ jobs:
           ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
           envs: RELEASES_DIR,RELEASE_DIR,ENV_FILE_PATH,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV,RELEASES_TO_KEEP
           action_script: |
+            source .github/scripts/functions.sh
+
             # Create release directory and clone the repository
             mkdir -p $RELEASE_DIR
             cd $RELEASE_DIR
@@ -75,9 +77,7 @@ jobs:
             composer install --optimize-autoloader --no-dev
 
             # Run migrations
-            php artisan migrate --force --no-interaction --path=database/migrations/landlord --database=landlord
-            php artisan migrate --force --no-interaction --path=database/migrations/monitor --database=monitor
-            # php artisan tenant:migrate --force
+            migrate $RELEASE_DIR
 
             # Setup symlinks
             ln -nfs $RELEASE_DIR $CURRENT_DIR
