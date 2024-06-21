@@ -38,8 +38,6 @@ jobs:
           ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
           envs: RELEASES_DIR,CURRENT_DIR,WEB_ROOT_DIR
           action_script: |
-            cd $RELEASES_DIR
-
             # Set the latest release directory, exit if it does not exist
             latest_release=$(realpath $CURRENT_DIR)
             if [ ! -d "$latest_release" ]; then
@@ -48,14 +46,14 @@ jobs:
             fi
 
             # Set the previous release directory, exit if it does not exist
-            previous_release=$(find . -maxdepth 1 -type d ! -path . -exec stat --format="%n" {} + | sort -r | head -n 2 | tail -n 1 | xargs realpath)
+            previous_release=$(find $RELEASES_DIR -maxdepth 1 -type d ! -path . -exec stat --format="%n" {} + | sort -r | head -n 2 | tail -n 1 | xargs realpath)
             if [[ "$previous_release" == "$latest_release" ]]; then
               echo "Error: there is no previous release to rollback to"
               exit 1
             fi
 
             # Run migrations
-            source .github/scripts/functions.sh
+            source $latest_release/.github/scripts/functions.sh
             rollback $latest_release $previous_release
             migrate $previous_release
 
