@@ -77,6 +77,8 @@ jobs:
 
             # Run migrations
             source .github/scripts/functions.sh
+            current_release=$(realpath $CURRENT_DIR)
+            rollback $current_release $RELEASE_DIR
             migrate $RELEASE_DIR
 
             # Setup symlinks

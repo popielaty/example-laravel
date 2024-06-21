@@ -54,25 +54,10 @@ jobs:
               exit 1
             fi
 
-            cd $latest_release
-
-            # Rollback database migrations
-            if [ -d "$latest_release/database/migrations" ] && [ -d "$previous_release/database/migrations" ]; then
-
-              db_names=("monitor" "landlord")
-
-              # for each db compare migrations between releases, count migrations added in latest release.
-              for db_name in "${db_names[@]}"; do
-                latest_migrations=$(find $latest_release/database/migrations/$db_name -type f -name "*.php" | sed "s|$latest_release/||")
-                previous_migrations=$(find $previous_release/database/migrations/$db_name -type f -name "*.php" | sed "s|$previous_release/||")
-                migrations_to_rollback_count=$(comm -23 <(echo "$latest_migrations" | sort) <(echo "$previous_migrations" | sort) | wc -l)
-
-                # rollback
-                if [ "$migrations_to_rollback_count" -gt 0 ]; then
-                  php artisan migrate:rollback --database $db_name --path database/migrations/$db_name --step $migrations_to_rollback_count
-                fi
-              done
-            fi
+            # Run migrations
+            source .github/scripts/functions.sh
+            rollback $latest_release $previous_release
+            migrate $previous_release
 
             # Setup symlinks
             ln -nfs $previous_release $CURRENT_DIR
