@@ -40,7 +40,7 @@ jobs:
         run: |
           deployable_branches=$(echo $environments | jq -r ".$current_environment.branches")
           if [[ $deployable_branches != "null" ]] && ! echo "$deployable_branches" | grep -q "\\b${{ github.ref_name }}\\b"; then
-            echo "Branch ${{ github.ref_name }} is not allowed to be deployed to $current_environment"
+            echo "Branch ${{ github.ref_name }} is not allowed to be deployed to ${{ env.current_environment}}"
             exit 1
           fi
       - name: Resolve release dir
