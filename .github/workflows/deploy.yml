@@ -33,6 +33,16 @@ jobs:
             echo "Variable RELEASES_TO_KEEP is not set"
             exit 1
           fi
+      - name: Validate whether given branch can be deployed to environment
+        env:
+          environments: ${{ secrets.ENVIRONMENTS }}
+          current_environment: ${{ github.event.inputs.environment}}
+        run: |
+          deployable_branches=$(echo $environments | jq -r ".$current_environment.branches")
+          if [[ $deployable_branches != "null" ]] && ! echo "$deployable_branches" | grep -q "\\b${{ github.ref_name }}\\b"; then
+            echo "Branch ${{ github.ref_name }} is not allowed to be deployed to $current_environment"
+            exit 1
+          fi
       - name: Resolve release dir
         run: |
           BRANCH_NAME=$(echo ${{ github.ref_name }} | tr '/' '-')
