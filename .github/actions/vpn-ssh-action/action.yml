@@ -71,8 +71,8 @@ runs:
         current_environment: ${{ inputs.current_environment }}
       run: |
         authorized_users=$(echo $ENVIRONMENTS | jq -r ".$current_environment.authorized_users")
-        if [[ $authorized_users != "null" ]] && ! echo "$authorized_users" | grep -q "\\b$GITHUB_ACTOR\\b"; then
-          echo "User $GITHUB_ACTOR is not authorized to act on ${{ env.current_environment }}"
+        if [[ $authorized_users != "null" ]] && ! echo "$authorized_users" | grep -q "\\b${{ github.actor }}\\b"; then
+          echo "User ${{ github.actor }} is not authorized to act on ${{ env.current_environment }}"
           exit 1
         fi
       shell: bash
