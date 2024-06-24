@@ -70,12 +70,8 @@ runs:
       env:
         current_environment: ${{ inputs.current_environment }}
       run: |
-        if [[ $(echo $ENVIRONMENTS | jq -r ".$current_environment.authorized_users") == "null" ]]; then
-          echo "authorized_users array for $current_environment is not set in ENVIRONMENTS secret"
-          exit 1
-        fi
-        authorized_users=$(echo $ENVIRONMENTS | jq -r ".$current_environment.authorized_users[]")
-        if ! echo "$authorized_users" | grep -q "\\b$GITHUB_ACTOR\\b"; then
+        authorized_users=$(echo $ENVIRONMENTS | jq -r ".$current_environment.authorized_users")
+        if [[ $authorized_users != "null" ]] && ! echo "$authorized_users" | grep -q "\\b$GITHUB_ACTOR\\b"; then
           echo "User $GITHUB_ACTOR is not authorized to act on $current_environment"
           exit 1
         fi
