@@ -54,6 +54,7 @@ jobs:
           RELEASE_DIR: /home/${{ vars.ssh_username }}/releases/${{ env.release_dir }}
           CURRENT_DIR: /home/${{ vars.ssh_username }}/releases/current
           STORAGE_DIR: /home/${{ vars.ssh_username }}/shared/storage
+          HELPER_SCRIPT: /home/${{ vars.ssh_username }}/shared/helper.sh
           ENV_FILE_PATH: /home/${{ vars.ssh_username }}/shared/.env
           WEB_ROOT_DIR: /home/${{ vars.ssh_username }}/${{ vars.web_root_dir }}
           REMOTE: ${{ env.repo_host }}:${{ github.repository }}
@@ -67,7 +68,7 @@ jobs:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           ovpn_client: ${{ secrets.OVPN_CLIENT }}
           ovpn_user_key_password: ${{ secrets.OVPN_USER_KEY_PASSWORD }}
-          envs: RELEASES_DIR,RELEASE_DIR,ENV_FILE_PATH,CURRENT_DIR,STORAGE_DIR,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV,RELEASES_TO_KEEP
+          envs: RELEASES_DIR,RELEASE_DIR,ENV_FILE_PATH,CURRENT_DIR,STORAGE_DIR,HELPER_SCRIPT,WEB_ROOT_DIR,REMOTE,BRANCH,LARAVEL_ENV,RELEASES_TO_KEEP
           action_script: |
             # Create release directory and clone the repository
             mkdir -p $RELEASE_DIR
@@ -85,10 +86,12 @@ jobs:
             composer install --optimize-autoloader --no-dev
 
             # Run migrations
-            source .github/scripts/functions.sh
+            chmod +x $HELPER_SCRIPT
+            source $HELPER_SCRIPT
             latest_release=$(realpath $CURRENT_DIR)
             rollback $latest_release $RELEASE_DIR
             migrate $RELEASE_DIR
+            # rm $HELPER_SCRIPT
 
             # Setup symlinks
             ln -nfs $RELEASE_DIR $CURRENT_DIR
